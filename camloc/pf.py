@@ -60,16 +60,19 @@ class ParticleFilter:
         lik *= p.head_floor + (1 - p.head_floor) * np.exp(-0.5 * (dh / np.radians(p.sigma_head)) ** 2)
         self._reweight(lik)
 
-    def update_fix(self, fx, fy, fyaw):
-        """Absolute pose fix. Returns False if it was gated out."""
+    def update_fix(self, fx, fy, fyaw, sig_lat=None, sig_lon=None, gate_pos=None):
+        """Absolute pose fix. Returns False if it was gated out. sig_lat / sig_lon / gate_pos override the
+        parameters for a fix source with a different accuracy (e.g. the RoMa fallback)."""
         p = self.p
         mx, my, myaw = self.estimate()
-        if np.hypot(fx - mx, fy - my) > p.fix_gate_pos or abs(wrap(fyaw - myaw)) > np.radians(p.fix_gate_yaw):
+        gate = p.fix_gate_pos if gate_pos is None else gate_pos
+        if np.hypot(fx - mx, fy - my) > gate or abs(wrap(fyaw - myaw)) > np.radians(p.fix_gate_yaw):
             return False
         ex, ey = fx - self.x, fy - self.y
         c, s = np.cos(self.yaw), np.sin(self.yaw)
         lon, lat = c * ex + s * ey, -s * ex + c * ey
-        e = (lat / p.fix_lat) ** 2 + (lon / p.fix_lon) ** 2 + (wrap(fyaw - self.yaw) / np.radians(p.fix_yaw)) ** 2
+        sl, sn = (p.fix_lat if sig_lat is None else sig_lat), (p.fix_lon if sig_lon is None else sig_lon)
+        e = (lat / sl) ** 2 + (lon / sn) ** 2 + (wrap(fyaw - self.yaw) / np.radians(p.fix_yaw)) ** 2
         self._reweight(p.fix_floor + (1 - p.fix_floor) * np.exp(-0.5 * e))
         return True
 
