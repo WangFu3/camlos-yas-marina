@@ -34,9 +34,15 @@ class KeyframeMap:
         idx = np.argsort(d)[:n]
         return idx[np.isfinite(d[idx])]
 
-    def localize(self, feats, fq, pred, n_kf=2, reproj=3.0, min_inliers=15):
+    def merged(self, kfs):
+        """One feature dict holding the keypoints of several keyframes (one LightGlue call instead of n)."""
+        s = np.concatenate([np.arange(self.off[k], self.off[k + 1]) for k in kfs])
+        return from_numpy(self.kpts[s], self.desc[s], self.score[s], self.image_size), s
+
+    def localize(self, feats, fq, pred, n_kf=2, merge=False, reproj=3.0, min_inliers=15):
         """Pose of base_link from query features fq (GPU dict) near the predicted pose.
 
+        merge: match against the n_kf keyframes concatenated in a single LightGlue call.
         Returns dict(ok, x, y, yaw, n_match, n_inl, kf)."""
         out = dict(ok=False, x=np.nan, y=np.nan, yaw=np.nan, n_match=0, n_inl=0, kf=-1)
         kfs = self.nearest(pred, n_kf)
@@ -44,9 +50,14 @@ class KeyframeMap:
             return out
         qk = fq['keypoints'][0].cpu().numpy()
         img, obj = [], []
-        for k in kfs:
-            iq, ik = feats.match(fq, self.keyframe(k))
-            img.append(qk[iq]); obj.append(self.X[self.off[k] + ik])
+        if merge and len(kfs) > 1:
+            fk, rows = self.merged(kfs)
+            iq, ik = feats.match(fq, fk)
+            img.append(qk[iq]); obj.append(self.X[rows[ik]])
+        else:
+            for k in kfs:
+                iq, ik = feats.match(fq, self.keyframe(k))
+                img.append(qk[iq]); obj.append(self.X[self.off[k] + ik])
         img, obj = np.vstack(img).astype(np.float64), np.vstack(obj).astype(np.float64)
         out.update(n_match=len(img), kf=int(kfs[0]))
         if len(img) < min_inliers:
