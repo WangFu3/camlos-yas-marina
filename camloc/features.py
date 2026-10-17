@@ -10,17 +10,20 @@ DEV = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 class Features:
     """extract(gray, mask) -> feature dict on the GPU; match(a, b) -> index arrays (ia, ib)."""
 
-    def __init__(self, n_kpts=2048, resize=1024, clahe=True):
+    def __init__(self, n_kpts=2048, resize=1024, clahe=True, mp=False, amp=False):
+        """mp: LightGlue mixed precision; amp: ALIKED under fp16 autocast."""
         self.net = ALIKED(max_num_keypoints=n_kpts, detection_threshold=0.0).eval().to(DEV)
-        self.lg = LightGlue(features='aliked').eval().to(DEV)
-        self.resize = resize
+        self.lg = LightGlue(features='aliked', mp=mp).eval().to(DEV)
+        self.resize, self.amp = resize, amp and DEV.type == 'cuda'
         self.clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)) if clahe else None
 
     @torch.no_grad()
     def extract(self, gray, mask=None):
         g = self.clahe.apply(gray) if self.clahe is not None else gray
         img = torch.from_numpy(g).to(DEV).float().div_(255).expand(3, -1, -1)
-        f = self.net.extract(img, resize=self.resize)
+        with torch.autocast('cuda', dtype=torch.float16, enabled=self.amp):
+            f = self.net.extract(img, resize=self.resize)
+        f = {n: (v.float() if v.is_floating_point() else v) for n, v in f.items()}
         if mask is not None:
             k = f['keypoints'][0].round().long()
             k[:, 0].clamp_(0, gray.shape[1] - 1); k[:, 1].clamp_(0, gray.shape[0] - 1)
