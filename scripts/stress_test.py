@@ -43,6 +43,8 @@ def main():
     ap.add_argument('--maps', default='maps')
     ap.add_argument('--init-from', default='out/final/final.csv', help='causal online run used for the start pose')
     ap.add_argument('--roma', default='0', help='comma list of --roma-fallback values to compare, e.g. 0,1')
+    ap.add_argument('--run-args', default='', help='extra run.py arguments, e.g. "--roma-cert 0.05"')
+    ap.add_argument('--tag', default='', help='added to the output names (for --run-args variants)')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     laps = pd.read_csv('cache/laps.csv').set_index('lap')
@@ -50,24 +52,24 @@ def main():
     rows = []
     for cond, roma, l in [(c, r, int(l)) for c in a.conds.split(',') for r in a.roma.split(',') for l in a.laps.split(',')]:
             lap = laps.loc[l]
-            out = f'{a.out}/{cond}_roma{roma}_lap{l}.csv'
+            out = f'{a.out}/{cond}_roma{roma}{a.tag}_lap{l}.csv'
             if not os.path.exists(out):
                 subprocess.run([PY, os.path.join(ROOT, 'run.py'), a.bag, out, '--work', 'cache', '--cams', 'fl,rl',
                                 '--maps', a.maps, '--pf-config', 'configs/fl_rl.json', '--transform', cond,
                                 '--roma-fallback', roma,
                                 '--t-start', str(int(lap.t0_ns - 20e9)), '--t-end', str(int(lap.t1_ns)),
-                                '--init-from', a.init_from], check=True)
+                                '--init-from', a.init_from] + a.run_args.split(), check=True)
             log = pd.read_csv(out.replace('.csv', '_log.csv'))
             inl = log[(log.timestamp_ns >= lap.t0_ns) & (log.timestamp_ns <= lap.t1_ns)]
             lg = inl[~inl.cam.str.endswith('_roma')]
             ro = inl[inl.cam.str.endswith('_roma')]
-            r = dict(cond=cond, roma=int(roma), lap=l, **score(gt, pd.read_csv(out), lap),
+            r = dict(cond=cond, roma=int(roma), tag=a.tag, lap=l, **score(gt, pd.read_csv(out), lap),
                      fix_ok=float(((lg.ok == 1) & (lg.n_inl >= 15)).mean() * 100),
                      roma_calls=len(ro), roma_ok=int(((ro.ok == 1) & (ro.n_inl >= 15)).sum()))
             rows.append(r)
             print({k: (round(v, 3) if isinstance(v, float) else v) for k, v in r.items()}, flush=True)
     res = pd.DataFrame(rows)
-    res.to_csv(f'{a.out}/summary.csv', index=False)
+    res.to_csv(f'{a.out}/summary{a.tag}.csv', index=False)
     print(res.round(3).to_string(index=False))
 
 

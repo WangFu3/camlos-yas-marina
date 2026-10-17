@@ -106,10 +106,11 @@ def main():
     ap.add_argument('--pf-config', default=None, help='JSON with {"params": {...}} overriding PFParams defaults')
     ap.add_argument('--roma-fallback', type=int, default=0, help='RoMa relocalization when LightGlue gives no fix')
     ap.add_argument('--roma-cam', default='fl')
-    ap.add_argument('--roma-period', type=float, default=1.0, help='s, at most one RoMa call per period')
+    ap.add_argument('--roma-period', type=float, default=0.5, help='s, at most one RoMa call per period')
     ap.add_argument('--roma-lat', type=float, default=0.3, help='m, sigma of RoMa fixes across the car')
     ap.add_argument('--roma-lon', type=float, default=1.2, help='m, sigma of RoMa fixes along the car')
     ap.add_argument('--roma-gate', type=float, default=10.0, help='m, RoMa fixes farther than this are ignored')
+    ap.add_argument('--roma-cert', type=float, default=0.05, help='RoMa certainty threshold for the sampled matches')
     # robustness tests only (not used for the submission)
     ap.add_argument('--transform', default='none', help='synthetic appearance change, see camloc/augment.py')
     ap.add_argument('--t-start', type=int, default=None, help='ns; run only from here (needs --init-from)')
@@ -154,7 +155,8 @@ def main():
     roma, last_roma = None, -10**19
     if a.roma_fallback:
         from camloc.roma_fallback import RomaFallback
-        roma = RomaFallback(kfmaps[a.roma_cam], f'{a.maps}/kf_{a.roma_cam}_img', masks[a.roma_cam])
+        roma = RomaFallback(kfmaps[a.roma_cam], f'{a.maps}/kf_{a.roma_cam}_img', masks[a.roma_cam],
+                            cert_thr=a.roma_cert)
 
     # ---- 2. online loop
     rows, log = [], []
