@@ -36,6 +36,13 @@ laps 2 and 6 only; this table is the single run on laps 3 and 7.
 Inverted images are a crude stand-in for daylight reversing the night shading (LightGlue then finds a
 fix in only ~12 % of the frames). This is not a test on real daylight images, which we do not have.
 
+![Validation lap 7, inverted images: error with and without RoMa, and which fixes the filter received](docs/figures/lap7_invert_roma.png)
+
+What RoMa does on one frame (lap 7, 48 s): the inverted image is matched densely to the stored night
+keyframe; the matches lie on fixed structures (stands, light rows, bridge), and PnP on them gives the pose.
+
+![RoMa matches between an inverted image and a night keyframe, with the certainty map](docs/figures/roma_match_example.png)
+
 Timing is per image set on an NVIDIA GeForce RTX 2070 under WSL2. Coverage is 100 % in all versions.
 Full analysis, failure cases and next steps: [RESULTS17.10morning.md](RESULTS17.10morning.md);
 method and test procedure: [METHOD.md](METHOD.md).
